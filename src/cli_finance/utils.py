@@ -32,22 +32,6 @@ def delete_all():
 def delete_sepcific(id_):
     with get_conn() as con:
         con.execute("DELETE FROM transactions WHERE id =?",(id_,))
-# def main():
-#     init_()
-#     add_record('test','income',500)
-#     rec = get_records()
-#     for r in rec:
-#         print(dict(r))
-#     delete_sepcific(1)
-#     print("Specific deleted")
-#     rec = get_records()
-#     for r in rec:
-#         print(dict(r))
-#     rec = get_records()
-#     delete_all()
-#     print("All deleted")
-#     for r in rec:
-#        print(dict(r))
-# main()
+
 
 
