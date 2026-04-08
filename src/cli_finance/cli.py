@@ -1,4 +1,4 @@
-import typer
+
 from rich.console import Console
 from rich.prompt import Prompt, IntPrompt
 from rich.prompt import InvalidResponse
@@ -71,6 +71,8 @@ def handle_summary():
     table.add_row("Total Expense",f"${total_expense or 0:,.2f}")
     console.print(table)
 
+def handloe_plot():
+    utils.line_plot()
 
 def main():
     utils.init_()
@@ -81,7 +83,8 @@ def main():
     dispatch = {
         'Add': handle_add,
         'Delete':handle_delete,
-        'Summary': handle_summary
+        'Summary': handle_summary,
+        'plot': handloe_plot
     }
     while True:
         console.print()

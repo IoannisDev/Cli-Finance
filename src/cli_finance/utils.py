@@ -2,7 +2,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from rich.prompt import Prompt,InvalidResponse,IntPrompt
-
+import plotext as plt
+from datetime import datetime
 APP_DIR = Path.home() / ".cli-finance"
 APP_DIR.mkdir(mode=0o700, exist_ok=True)
 DB = str(APP_DIR / "records.db")
@@ -10,12 +11,13 @@ DB = str(APP_DIR / "records.db")
 
 
 class numberprompt(Prompt):
-    def process_response(self,value:str) -> int:
+    """A custom rich prompt that only accepts integers annd float greater than 0.0"""
+    def process_response(self,value:str) -> float:
         try:
-            number = int(value)
+            number = float(value)
         except ValueError:
             raise InvalidResponse("[prompt.invalid]Please Enter a valid integer.")
-        if number<=0:
+        if number<=0.0:
             raise InvalidResponse("[prompt.invalid]Please enter value greater than 0")
         return number
 @contextmanager
@@ -46,7 +48,14 @@ def init_():
         """)
 
 
-def add_record(category, type_, amount):
+def add_record(category:str, type_:str, amount:float)->int:
+    """Inserts financial transactions into the database
+    Args:
+        category(str): 'Income' or 'Expense'
+        type(str): 'Salary' ,'Rent',etc.
+        amount(float): The transaction amount
+    """
+
     with get_conn() as con:
         con.execute("INSERT INTO transactions(category,type,amount) VALUES(?,?,?)", (category, type_, amount))
 
@@ -73,6 +82,34 @@ def delete_sepcific():
     with get_conn() as con:
         id_ = IntPrompt.ask("Which transaction data you would like to delete?: ",default=None)
         con.execute("DELETE FROM transactions WHERE id =?", (id_,))
+
+def get_data():
+    with get_conn() as con:
+        Date = con.execute("SELECT DISTINCT  date FROM transactions ORDER BY date") .fetchall() 
+        raw_dates = [str(row[0]) for row in Date]
+        dates = [datetime.strptime(str(row[0]), "%Y-%m-%d").strftime("%d/%m/%Y") for row in Date]
+        Incomes = []
+        Expenses = []
+        for date in raw_dates:
+            inc = con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Income' And date=?",(date,)).fetchone()[0]
+            exp =con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Expense' And date=?",(date,)).fetchone()[0]
+            Incomes.append(inc or 0)
+            Expenses.append(exp or 0)
+
+    return dates ,Incomes,Expenses
+def line_plot():
+    Date , Incomes, Expenses = get_data()
+    x = list(range(len(Date)))
+    plt.clf()
+
+    plt.theme('dark')
+    plt.plot_size(100,30)
+    plt.date_form('d/m/Y')
+    plt.plot(x,Incomes,color='green',label='Income')
+    plt.plot(x,Expenses,color='red',label='Expense')
+    plt.xticks(x, Date)
+    plt.title("Financial Overview")
+    plt.show()
 
 
 

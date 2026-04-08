@@ -53,7 +53,7 @@ documentation = "https://IoannisDev.github.io/CLI-Finance/"
 homepage = "https://github.com/IoannisDev/CLI-Finance"
 
 [project.scripts]
-cli_finance = "cli_finance.cli:app"
+cli_finance = "cli_finance.cli:main"
 
 [tool.ty]
 # All rules are enabled as "error" by default; no need to specify unless overriding.
