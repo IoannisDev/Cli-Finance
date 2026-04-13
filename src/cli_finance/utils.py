@@ -1,9 +1,11 @@
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
-from rich.prompt import Prompt,InvalidResponse,IntPrompt
-import plotext as plt
 from datetime import datetime
+from pathlib import Path
+
+import plotext as plt
+from rich.prompt import IntPrompt, InvalidResponse, Prompt
+
 APP_DIR = Path.home() / ".cli-finance"
 APP_DIR.mkdir(mode=0o700, exist_ok=True)
 DB = str(APP_DIR / "records.db")
@@ -15,12 +17,12 @@ class numberprompt(Prompt):
     def process_response(self,value:str) -> float:
         try:
             number = float(value)
-        except ValueError:
-            raise InvalidResponse("[prompt.invalid]Please Enter a valid integer.")
+        except ValueError as err:
+            raise InvalidResponse("[prompt.invalid]Please Enter a valid integer.") from err
         if number<=0.0:
             raise InvalidResponse("[prompt.invalid]Please enter value greater than 0")
         return number
-    
+
 @contextmanager
 def get_conn():
     """Yield a database connection that auto-commits and always closes."""
@@ -49,7 +51,7 @@ def init_():
         """)
 
 
-def add_record(category:str, type_:str, amount:float)->int:
+def add_record(category:str, type_:str, amount:float) -> None:
     """Inserts financial transactions into the database
     Args:
         category(str): 'Income' or 'Expense'
@@ -67,13 +69,13 @@ def get_records():
         date = con.execute("SELECT date FROM transactions ORDER BY date DESC LIMIT 1").fetchone()
         date = date[0] if date else "No records"
         return total_income,total_expense,date
-    
-    
+
+
 
 
 def delete_all():
     with get_conn() as con:
-        confirm = Prompt.ask(f"[red]Confirm delete data [/red]",choices=['Confirm','Escape'],case_sensitive=False)
+        confirm = Prompt.ask("[red]Confirm delete data [/red]",choices=['Confirm','Escape'],case_sensitive=False)
         if confirm == "Confirm":
             con.execute("DELETE FROM transactions")
             con.execute("DELETE FROM sqlite_sequence WHERE name='transactions'")
@@ -87,7 +89,7 @@ def delete_specific():
 
 def get_data():
     with get_conn() as con:
-        Date = con.execute("SELECT DISTINCT  date FROM transactions ORDER BY date") .fetchall() 
+        Date = con.execute("SELECT DISTINCT  date FROM transactions ORDER BY date") .fetchall()
         raw_dates = [str(row[0]) for row in Date]
         dates = [datetime.strptime(str(row[0]), "%Y-%m-%d").strftime("%d/%m/%Y") for row in Date]
         Incomes = []
@@ -95,8 +97,12 @@ def get_data():
         total_income = 0
         total_expense = 0
         for date in raw_dates:
-            inc = con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Income' And date=?",(date,)).fetchone()[0]
-            exp =con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Expense' And date=?",(date,)).fetchone()[0]
+            inc = con.execute(
+                "SELECT SUM(amount) FROM transactions WHERE category = 'Income' And date=?", (date,)
+            ).fetchone()[0]
+            exp = con.execute(
+                "SELECT SUM(amount) FROM transactions WHERE category = 'Expense' And date=?", (date,)
+            ).fetchone()[0]
             total_income += (inc or 0)
             total_expense += (exp or 0)
             Incomes.append(total_income)
@@ -109,7 +115,7 @@ def line_plot():
     plt.clf()
 
     plt.theme('clear')
-    plt.plot_size(100,30) 
+    plt.plot_size(100,30)
     plt.date_form('d/m/Y')
     plt.plot(x,Incomes,color='green')
     plt.plot(x,Expenses,color='red')

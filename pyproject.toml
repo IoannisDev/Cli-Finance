@@ -8,10 +8,10 @@ version = "0.1.0"
 description = "A CLI based finance tracker"
 readme = "README.md"
 authors = [
-  {name = "Aang Sherpa", email = "N/A"}
+  {name = "Aang Sherpa", email = "aang@example.com"}
 ]
 maintainers = [
-  {name = "Aang Sherpa", email = "N/A"}
+  {name = "Aang Sherpa", email = "aang@example.com"}
 ]
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -22,6 +22,7 @@ license = {text = "MIT"}
 dependencies = [
   "typer",
   "rich",
+  "plotext",
 ]
 requires-python = ">= 3.12"
 

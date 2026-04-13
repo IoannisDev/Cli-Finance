@@ -1,15 +1,16 @@
 
+try:
+    from cli_finance import utils
+except ModuleNotFoundError:
+    import utils  # type: ignore[import-not-found]  # direct script execution
+from rich.align import Align
 from rich.console import Console
-from rich.prompt import Prompt, IntPrompt
-from rich.prompt import InvalidResponse
 from rich.layout import Layout
-import utils
 from rich.panel import Panel
-from rich.live import Live
-from rich.theme import Theme
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
-from rich.align import Align
+from rich.theme import Theme
 
 #Theme for the CLI interface
 custom_theme = Theme({
@@ -37,16 +38,19 @@ def make_layout():
     layout = Layout()
     layout.split_column(
         # Increase size to fit the height of your ASCII art
-        Layout(name="header", size=10), 
+        Layout(name="header", size=10),
         Layout(name="main", ratio=1)
     )
     return layout
 def make_header(layout: Layout) -> None:
     lines = ASCII_art.split("\n")
-    colors = ["#00FFFF", "#00E5FF", "#00BFFF", "#0099FF", "#0077FF", "#0055FF", "#0033FF", "#0022CC", "#0011AA", "#000099"]
-    
+    colors = [
+        "#00FFFF", "#00E5FF", "#00BFFF", "#0099FF", "#0077FF",
+        "#0055FF", "#0033FF", "#0022CC", "#0011AA", "#000099"
+    ]
+
     art = Text()
-    for line, color in zip(lines, colors):
+    for line, color in zip(lines, colors, strict=False):
         art.append(line + "\n", style=f"bold {color}")
 
     layout["header"].update(
@@ -56,11 +60,19 @@ def make_header(layout: Layout) -> None:
 def input_c():
     category = Prompt.ask("Enter category",choices=['Income','Expense'])
     if category =="Income":
-        type_= Prompt.ask("Enter the type of Income: ",choices=['Salary','Dividends','Cash Back','Investment returns'],case_sensitive=False)
+        type_= Prompt.ask(
+            "Enter the type of Income: ",
+            choices=['Salary','Dividends','Cash Back','Investment returns'],
+            case_sensitive=False
+        )
     elif category=="Expense":
-        type_ = Prompt.ask("Enter the type of Expense: ",choices=['Grocery','Rent','Wifi','Electricity','Subscription','Electronics'],case_sensitive=False)
+        type_ = Prompt.ask(
+            "Enter the type of Expense: ",
+            choices=['Grocery','Rent','Wifi','Electricity','Subscription','Electronics'],
+            case_sensitive=False
+        )
     amount = utils.numberprompt.ask("Enter amount")
-    return category,type_,amount 
+    return category,type_,amount
 
 def handle_add():
     "Asks for input from the user and records the data"
@@ -70,7 +82,11 @@ def handle_add():
 
 def handle_delete():
     "Deletes the data from the sql file"
-    choice = Prompt.ask("Do you want to delete specific transaction or all the data?",choices=['All','Specific','Escape'],case_sensitive=False)
+    choice = Prompt.ask(
+        "Do you want to delete specific transaction or all the data?",
+        choices=['All','Specific','Escape'],
+        case_sensitive=False
+    )
     if choice=='All':
      utils.delete_all()
     elif choice=='Specific':
@@ -106,7 +122,7 @@ def main():
     }
     while True:
         console.print()
-  
+
         command = Prompt.ask("Command: ",choices=[*dispatch.keys(),'exit'],case_sensitive=False)
         if command =="exit":
             break
