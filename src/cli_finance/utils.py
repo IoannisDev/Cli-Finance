@@ -90,11 +90,15 @@ def get_data():
         dates = [datetime.strptime(str(row[0]), "%Y-%m-%d").strftime("%d/%m/%Y") for row in Date]
         Incomes = []
         Expenses = []
+        total_income = 0
+        total_expense = 0
         for date in raw_dates:
             inc = con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Income' And date=?",(date,)).fetchone()[0]
             exp =con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Expense' And date=?",(date,)).fetchone()[0]
-            Incomes.append(inc or 0)
-            Expenses.append(exp or 0)
+            total_income += (inc or 0)
+            total_expense += (exp or 0)
+            Incomes.append(total_income)
+            Expenses.append(total_expense)
 
     return dates ,Incomes,Expenses
 def line_plot():
@@ -103,12 +107,16 @@ def line_plot():
     plt.clf()
 
     plt.theme('dark')
-    plt.plot_size(100,30)
+
+    plt.plot_size(100,30) 
     plt.date_form('d/m/Y')
-    plt.plot(x,Incomes,color='green',label='Income')
-    plt.plot(x,Expenses,color='red',label='Expense')
-    plt.xticks(x, Date)
-    plt.title("Financial Overview")
+    plt.plot(x,Incomes,color='green')
+    plt.plot(x,Expenses,color='red')
+    step = max(1, len(Date) // 10)
+    sampled_x = x[::step]
+    sampled_dates = Date[::step]
+    plt.xticks(sampled_x, sampled_dates)
+    plt.title("Financial Overview   [green: Income | red: Expense]")
     plt.show()
 
 

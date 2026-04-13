@@ -8,17 +8,20 @@ from rich.panel import Panel
 from rich.live import Live
 from rich.theme import Theme
 from rich.table import Table
+from rich.text import Text
 from rich.align import Align
+
 #Theme for the CLI interface
 custom_theme = Theme({
     "info": "dim cyan",
     "warning": "bold yellow",
     "error": "bold red",
     "repr.number" :"bold magenta",
-    "repr.string" :"bold yellow"
+    "repr.string" :"bold yellow",
+    "panel.border":"grey50"
 })
 
-console = Console(width=120,markup=True,highlight=True,style='on black',force_terminal=True,theme=custom_theme)
+console = Console(width=120,markup=True,highlight=True,force_terminal=True,theme=custom_theme)
 
 ASCII_art = r"""
 .---------------------------------------------------------.
@@ -30,39 +33,53 @@ ASCII_art = r"""
 |                                                         |
 '---------------------------------------------------------'"""
 def make_layout():
+    "Creates layout for the ASCII art"
     layout = Layout()
     layout.split_column(
         # Increase size to fit the height of your ASCII art
         Layout(name="header", size=10), 
         Layout(name="main", ratio=1)
     )
-    # ... rest of your split logic
     return layout
 def make_header(layout: Layout) -> None:
+    lines = ASCII_art.split("\n")
+    colors = ["#00FFFF", "#00E5FF", "#00BFFF", "#0099FF", "#0077FF", "#0055FF", "#0033FF", "#0022CC", "#0011AA", "#000099"]
+    
+    art = Text()
+    for line, color in zip(lines, colors):
+        art.append(line + "\n", style=f"bold {color}")
+
     layout["header"].update(
-        Panel(Align(f"[bold cyan]{ASCII_art}[/bold cyan]",align='center'), style="bold cyan", padding=(0, 1), title="v1.0")
+        Panel(Align(art, align='center'), border_style="#00BFFF", padding=(0, 1), title="v1.0")
     )
+#Asks the user for input and the data is validated by the rich library
 def input_c():
     category = Prompt.ask("Enter category",choices=['Income','Expense'])
-    type_ = Prompt.ask("Enter transaction type",choices=['Salary','Grocery','Rent','Wifi','Electricity','Subscription'],case_sensitive=False)
+    if category =="Income":
+        type_= Prompt.ask("Enter the type of Income: ",choices=['Salary','Dividends','Cash Back','Investment returns'],case_sensitive=False)
+    elif category=="Expense":
+        type_ = Prompt.ask("Enter the type of Expense: ",choices=['Grocery','Rent','Wifi','Electricity','Subscription','Electronics'],case_sensitive=False)
     amount = utils.numberprompt.ask("Enter amount")
     return category,type_,amount 
 
 def handle_add():
+    "Asks for input from the user and records the data"
     category,type_,amount = input_c()
     utils.add_record(category,type_,amount)
     console.print(f"[green]Transaction saved:[/green] {category} | {type_} | {amount}")
 
 def handle_delete():
+    "Deletes the data from the sql file"
     choice = Prompt.ask("Do you want to delete specific transaction or all the data?",choices=['All','Specific','Escape'],case_sensitive=False)
     if choice=='All':
      utils.delete_all()
     elif choice=='Specific':
-        utils.delete_sepcific()
+        utils.delete_specific()
     elif choice=='Escape':
         pass
 
 def handle_summary():
+    "Returns a table with the data of total income and total expense"
     total_income,total_expense = utils.get_records()
     table = Table(title="Transaction Summary")
     table.add_column("Category",justify="right",no_wrap=True)
@@ -71,7 +88,8 @@ def handle_summary():
     table.add_row("Total Expense",f"${total_expense or 0:,.2f}")
     console.print(table)
 
-def handloe_plot():
+def handle_plot():
+    "plots the transaction data into a line plot"
     utils.line_plot()
 
 def main():
@@ -84,7 +102,7 @@ def main():
         'Add': handle_add,
         'Delete':handle_delete,
         'Summary': handle_summary,
-        'plot': handloe_plot
+        'plot': handle_plot
     }
     while True:
         console.print()
