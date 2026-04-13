@@ -20,6 +20,7 @@ class numberprompt(Prompt):
         if number<=0.0:
             raise InvalidResponse("[prompt.invalid]Please enter value greater than 0")
         return number
+    
 @contextmanager
 def get_conn():
     """Yield a database connection that auto-commits and always closes."""
@@ -34,7 +35,7 @@ def get_conn():
     finally:
         con.close()
 
-
+#Initializes the sql database table if the table doesnot exist
 def init_():
     with get_conn() as con:
         con.execute("""
@@ -55,7 +56,6 @@ def add_record(category:str, type_:str, amount:float)->int:
         type(str): 'Salary' ,'Rent',etc.
         amount(float): The transaction amount
     """
-
     with get_conn() as con:
         con.execute("INSERT INTO transactions(category,type,amount) VALUES(?,?,?)", (category, type_, amount))
 
@@ -64,7 +64,9 @@ def get_records():
     with get_conn() as con:
         total_income =  con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Income';").fetchone()[0]
         total_expense =  con.execute("SELECT SUM(amount) FROM transactions WHERE category = 'Expense';").fetchone()[0]
-        return total_income,total_expense
+        date = con.execute("SELECT date FROM transactions ORDER BY date DESC LIMIT 1").fetchone()
+        date = date[0] if date else "No records"
+        return total_income,total_expense,date
     
     
 
@@ -78,7 +80,7 @@ def delete_all():
         else:
             pass
 
-def delete_sepcific():
+def delete_specific():
     with get_conn() as con:
         id_ = IntPrompt.ask("Which transaction data you would like to delete?: ",default=None)
         con.execute("DELETE FROM transactions WHERE id =?", (id_,))
@@ -106,7 +108,7 @@ def line_plot():
     x = list(range(len(Date)))
     plt.clf()
 
-    plt.theme('dark')
+    plt.theme('clear')
 
     plt.plot_size(100,30) 
     plt.date_form('d/m/Y')

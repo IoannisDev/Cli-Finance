@@ -80,8 +80,8 @@ def handle_delete():
 
 def handle_summary():
     "Returns a table with the data of total income and total expense"
-    total_income,total_expense = utils.get_records()
-    table = Table(title="Transaction Summary")
+    total_income,total_expense,last_date = utils.get_records()
+    table = Table(title=f"Transaction Summary — Last updated: {last_date}")
     table.add_column("Category",justify="right",no_wrap=True)
     table.add_column("Total",style='green')
     table.add_row("Total Income",f"${total_income or 0:,.2f}")
