@@ -109,7 +109,6 @@ def line_plot():
     plt.clf()
 
     plt.theme('clear')
-
     plt.plot_size(100,30) 
     plt.date_form('d/m/Y')
     plt.plot(x,Incomes,color='green')
