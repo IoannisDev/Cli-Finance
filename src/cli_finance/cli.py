@@ -5,11 +5,18 @@ except ModuleNotFoundError:
 from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 from rich import box
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.validation import Validator, ValidationError
+
+
+
 
 #Theme for the CLI interface
 custom_theme = Theme({
@@ -21,7 +28,51 @@ custom_theme = Theme({
     "panel.border":"grey50"
 })
 
-console = Console(width=120,markup=True,highlight=True,force_terminal=True,theme=custom_theme)
+console = Console(markup=True, highlight=True, force_terminal=True, theme=custom_theme)
+bindings = KeyBindings()
+
+@bindings.add('escape')
+def exit_app(event):
+    # Support clean exit cleanly returning None when Escape is pressed
+    event.app.exit(result=None)
+
+def bottom_toolbar():
+    return HTML(' <b><style bg="ansiyellow" fg="black"> TAB </style></b> Autocomplete  <b><style bg="ansired" fg="white"> ESC </style></b> Cancel/Exit ')
+
+class NumberValidator(Validator):
+    def validate(self, document):
+        text = document.text
+        if not text.strip():
+            raise ValidationError(message="Please enter an amount.", cursor_position=0)
+        try:
+            val = float(text)
+            if val <= 0.0:
+                raise ValidationError(message="Amount must be > 0.", cursor_position=len(text))
+        except ValueError:
+            raise ValidationError(message="Please enter a valid number.", cursor_position=len(text))
+
+def ask_choice(message: str, choices: list[str]) -> str | None:
+    completer = WordCompleter(choices, ignore_case=True)
+    choices_str = "/".join(choices)
+    text = HTML(f"<b><ansicyan>{message}</ansicyan></b> <ansigray>[{choices_str}]</ansigray>\n<ansigreen>❯</ansigreen> ")
+    
+    while True:
+        result = prompt(
+            text, 
+            completer=completer, 
+            key_bindings=bindings, 
+            bottom_toolbar=bottom_toolbar,
+            complete_while_typing=True
+        )
+        if result is None:
+            return None
+        result_lower = result.strip().lower()
+        if not result_lower:
+            continue
+        for choice in choices:
+            if choice.lower() == result_lower:
+                return choice
+        console.print(f"[bold red]Invalid option.[/bold red] Please choose from: {choices_str}")
 
 ASCII_art = r"""
 .---------------------------------------------------------.
@@ -49,51 +100,57 @@ def make_header() -> Panel:
         Align(art, align='center', vertical='middle'),
         border_style="#00BFFF",
         padding=(1, 2),
-        title="[bold cyan]CLI-Finance v1.0[/bold cyan]",
+        title="[bold cyan]CLI-Finance v0.1.0[/bold cyan]",
         subtitle="[dim]Your personal finance tracker[/dim]",
         expand=False
     )
 
 #Asks the user for input and the data is validated by the rich library
 def input_c():
-    category = Prompt.ask("[bold cyan]Enter category[/bold cyan]",choices=['Income','Expense'])
-    if category =="Income":
-        type_= Prompt.ask(
-            "[bold cyan]Enter the type of Income[/bold cyan]",
-            choices=['Salary','Dividends','Cash Back','Investment returns'],
-            case_sensitive=False
-        )
-    elif category=="Expense":
-        type_ = Prompt.ask(
-            "[bold cyan]Enter the type of Expense[/bold cyan]",
-            choices=['Grocery','Rent','Wifi','Electricity','Subscription','Electronics'],
-            case_sensitive=False
-        )
-    amount = utils.numberprompt.ask("[bold cyan]Enter amount[/bold cyan]")
-    return category,type_,amount
+    category = ask_choice("Enter category", ['Income', 'Expense'])
+    if category is None:
+        console.print("[bold red]Action cancelled. Returning to main menu...[/bold red]")
+        return None
+
+    if category == "Income":
+        type_ = ask_choice("Enter the type of Income", ['Salary', 'Dividends', 'Cash Back', 'Investment returns'])
+    elif category == "Expense":
+        type_ = ask_choice("Enter the type of Expense", ['Grocery', 'Rent', 'Wifi', 'Electricity', 'Subscription', 'Electronics'])
+
+    if type_ is None:
+        console.print("[bold red]Action cancelled. Returning to main menu...[/bold red]")
+        return None  
+        
+    text = HTML("<b><ansicyan>Enter amount</ansicyan></b>\n<ansigreen>❯ $</ansigreen> ")
+    amount_str = prompt(text, validator=NumberValidator(), key_bindings=bindings, bottom_toolbar=bottom_toolbar)
+    
+    if amount_str is None:
+        console.print("[bold red]Action cancelled. Returning to main menu...[/bold red]")
+        return None
+        
+    return category, type_, float(amount_str)
 
 def handle_add():
     "Asks for input from the user and records the data"
-    category,type_,amount = input_c()
-    utils.add_record(category,type_,amount)
+    result = input_c()
+    if result is None:
+        return
+    category, type_, amount = result
+    utils.add_record(category, type_, amount)
     
     details = f"[bold]Category:[/bold] [cyan]{category}[/cyan]\n[bold]Type:[/bold] [cyan]{type_}[/cyan]\n[bold]Amount:[/bold] [bold magenta]${amount:,.2f}[/bold magenta]"
     console.print(Panel(details, title="[bold green]✔ Transaction saved successfully![/bold green]", border_style="green", expand=False))
 
 def handle_delete():
     "Deletes the data from the sql file"
-    choice = Prompt.ask(
-        "[bold red]Do you want to delete specific transaction or all the data?[/bold red]",
-        choices=['All','Specific','Escape'],
-        case_sensitive=False
-    )
-    if choice=='All':
+    choice = ask_choice("Do you want to delete specific transaction or all the data?", ['All', 'Specific'])
+    if choice == 'All':
         utils.delete_all()
         console.print(Panel("[bold red]All data has been deleted.[/bold red]", title="Delete", border_style="red", expand=False))
-    elif choice=='Specific':
+    elif choice == 'Specific':
         utils.delete_specific()
         console.print(Panel("[bold yellow]Specific data deleted.[/bold yellow]", title="Delete", border_style="yellow", expand=False))
-    elif choice=='Escape':
+    elif choice is None:
         console.print("[dim]Operation cancelled.[/dim]")
 
 def handle_summary():
@@ -119,8 +176,10 @@ def handle_summary():
 
 def handle_plot():
     "plots the transaction data into a line plot"
-    utils.line_plot()
-
+    try:
+        utils.line_plot()
+    except Exception as e:
+        console.print(f"[bold red]Failed to plot data:[/bold red] {e}")
 def main():
     utils.init_()
 
@@ -132,21 +191,18 @@ def main():
     }
     
     console.clear()
-    console.print(Align(make_header(), align="left"))
+    console.print(make_header())
     console.print()
     
     while True:
         try: 
-            command = Prompt.ask("[bold cyan]Command[/bold cyan]", choices=[*dispatch.keys(),'exit'], case_sensitive=False)
-            
-            if command =="exit":
+            command = ask_choice("Action", [*dispatch.keys(), 'Exit'])
+            if command is None or command == 'Exit':
                 console.print("\n[dim]Goodbye! Closing CLI-Finance...[/dim]")
                 break
-            
             console.print()
             dispatch[command]()
             console.print()
-            
         except KeyboardInterrupt:
             console.print("\n[dim]Goodbye! Closing CLI-Finance...[/dim]")
             break

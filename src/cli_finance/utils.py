@@ -3,24 +3,25 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from rich.prompt import IntPrompt, InvalidResponse, Prompt
+from prompt_toolkit import prompt
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.validation import Validator, ValidationError
 
 APP_DIR = Path.home() / ".cli-finance"
 APP_DIR.mkdir(mode=0o700, exist_ok=True)
 DB = str(APP_DIR / "records.db")
 
-
-
-class numberprompt(Prompt):
-    """A custom rich prompt that only accepts integers annd float greater than 0.0"""
-    def process_response(self,value:str) -> float:
+class IDValidator(Validator):
+    def validate(self, document):
+        text = document.text
+        if not text.strip():
+            raise ValidationError(message="Please enter an ID to delete.", cursor_position=0)
         try:
-            number = float(value)
-        except ValueError as err:
-            raise InvalidResponse("[prompt.invalid]Please Enter a valid integer.") from err
-        if number<=0.0:
-            raise InvalidResponse("[prompt.invalid]Please enter value greater than 0")
-        return number
+            val = int(text)
+            if val < 0:
+                raise ValidationError(message="ID must be positive.", cursor_position=len(text))
+        except ValueError:
+            raise ValidationError(message="Please enter a valid integer ID.", cursor_position=len(text))
 
 @contextmanager
 def get_conn():
@@ -57,6 +58,8 @@ def add_record(category:str, type_:str, amount:float) -> None:
         type(str): 'Salary' ,'Rent',etc.
         amount(float): The transaction amount
     """
+    if category is None or type_ is None:
+        print("Actions is canceled")
     with get_conn() as con:
         con.execute("INSERT INTO transactions(category,type,amount) VALUES(?,?,?)", (category, type_, amount))
 
@@ -73,18 +76,22 @@ def get_records():
 
 
 def delete_all():
+    from cli_finance.cli import ask_choice
     with get_conn() as con:
-        confirm = Prompt.ask("[red]Confirm delete data [/red]",choices=['Confirm','Escape'],case_sensitive=False)
-        if confirm == "Confirm":
+        # Prompt user using our new TUI standard
+        confirm = ask_choice("Confirm delete data?", ['Confirm', 'Escape'])
+        if confirm == 'Confirm':
             con.execute("DELETE FROM transactions")
             con.execute("DELETE FROM sqlite_sequence WHERE name='transactions'")
-        else:
-            pass
 
 def delete_specific():
+    from cli_finance.cli import bindings, bottom_toolbar
     with get_conn() as con:
-        id_ = IntPrompt.ask("Which transaction data you would like to delete?: ",default=None)
-        con.execute("DELETE FROM transactions WHERE id =?", (id_,))
+        text = HTML("<b><ansired>Which transaction ID would you like to delete?</ansired></b>\n<ansigreen>❯</ansigreen> ")
+        id_str = prompt(text, validator=IDValidator(), key_bindings=bindings, bottom_toolbar=bottom_toolbar)
+        
+        if id_str is not None:
+            con.execute("DELETE FROM transactions WHERE id =?", (int(id_str),))
 
 def get_data():
     with get_conn() as con:
