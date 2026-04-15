@@ -2,21 +2,18 @@ try:
     from cli_finance import utils
 except ModuleNotFoundError:
     import utils  # type: ignore[import-not-found]  # direct script execution
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.validation import ValidationError, Validator
+from rich import box
 from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
-from rich import box
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.validation import Validator, ValidationError
-
-
-
 
 #Theme for the CLI interface
 custom_theme = Theme({
@@ -49,18 +46,20 @@ class NumberValidator(Validator):
             if val <= 0.0:
                 raise ValidationError(message="Amount must be > 0.", cursor_position=len(text))
         except ValueError:
-            raise ValidationError(message="Please enter a valid number.", cursor_position=len(text))
+            raise ValidationError(message="Please enter a valid number.", cursor_position=len(text)) from None
 
 def ask_choice(message: str, choices: list[str]) -> str | None:
     completer = WordCompleter(choices, ignore_case=True)
     choices_str = "/".join(choices)
-    text = HTML(f"<b><ansicyan>{message}</ansicyan></b> <ansigray>[{choices_str}]</ansigray>\n<ansigreen>❯</ansigreen> ")
-    
+    text = HTML(f"<b><ansicyan>{message}</ansicyan></b>"
+                f"<ansigray>[{choices_str}]</ansigray>"
+                "\n<ansigreen>❯</ansigreen> ")
+
     while True:
         result = prompt(
-            text, 
-            completer=completer, 
-            key_bindings=bindings, 
+            text,
+            completer=completer,
+            key_bindings=bindings,
             bottom_toolbar=bottom_toolbar,
             complete_while_typing=True
         )
@@ -75,14 +74,17 @@ def ask_choice(message: str, choices: list[str]) -> str | None:
         console.print(f"[bold red]Invalid option.[/bold red] Please choose from: {choices_str}")
 
 ASCII_art = r"""
-.---------------------------------------------------------.
-|  _____ _                               ____ _     ___   |
-| |  ___(_)_ __   __ _ _ __   ___ ___   / ___| |   |_ _|  |
-| | |_  | | '_ \ / _` | '_ \ / __/ _ \ | |   | |    | |   |
-| |  _| | | | | | (_| | | | | (_|  __/ | |___| |___ | |   |
-| |_|   |_|_| |_|\__,_|_| |_|\___\___|  \____|_____|___|  |
-|                                                         |
-'---------------------------------------------------------'"""
+  /$$$$$$  /$$       /$$$$$$       /$$$$$$$$ /$$$$$$ /$$   /$$  /$$$$$$  /$$   /$$  /$$$$$$  /$$$$$$$$
+ /$$__  $$| $$      |_  $$_/      | $$_____/|_  $$_/| $$$ | $$ /$$__  $$| $$$ | $$ /$$__  $$| $$_____/
+| $$  \__/| $$        | $$        | $$        | $$  | $$$$| $$| $$  \ $$| $$$$| $$| $$  \__/| $$      
+| $$      | $$        | $$        | $$$$$     | $$  | $$ $$ $$| $$$$$$$$| $$ $$ $$| $$      | $$$$$   
+| $$      | $$        | $$        | $$__/     | $$  | $$  $$$$| $$__  $$| $$  $$$$| $$      | $$__/   
+| $$    $$| $$        | $$        | $$        | $$  | $$\  $$$| $$  | $$| $$\  $$$| $$    $$| $$      
+|  $$$$$$/| $$$$$$$$ /$$$$$$      | $$       /$$$$$$| $$ \  $$| $$  | $$| $$ \  $$|  $$$$$$/| $$$$$$$$
+ \______/ |________/|______/      |__/      |______/|__/  \__/|__/  |__/|__/  \__/ \______/ |________/
+                                                                                                      
+                                                                                                      
+                                                                                                      """
 
 def make_header() -> Panel:
     lines = ASCII_art.strip("\n").split("\n")
@@ -90,12 +92,12 @@ def make_header() -> Panel:
         "#00FFFF", "#00E5FF", "#00BFFF", "#0099FF", "#0077FF",
         "#0055FF", "#0033FF", "#0022CC", "#0011AA", "#000099"
     ]
-    art = Text() 
-    
+    art = Text()
+
     for i, line in enumerate(lines):
         color = colors[i % len(colors)]
         art.append(line + "\n", style=f"bold {color}")
-    
+
     return Panel(
         Align(art, align='center', vertical='middle'),
         border_style="#00BFFF",
@@ -119,15 +121,15 @@ def input_c():
 
     if type_ is None:
         console.print("[bold red]Action cancelled. Returning to main menu...[/bold red]")
-        return None  
-        
+        return None
+
     text = HTML("<b><ansicyan>Enter amount</ansicyan></b>\n<ansigreen>❯ $</ansigreen> ")
     amount_str = prompt(text, validator=NumberValidator(), key_bindings=bindings, bottom_toolbar=bottom_toolbar)
-    
+
     if amount_str is None:
         console.print("[bold red]Action cancelled. Returning to main menu...[/bold red]")
         return None
-        
+
     return category, type_, float(amount_str)
 
 def handle_add():
@@ -137,7 +139,7 @@ def handle_add():
         return
     category, type_, amount = result
     utils.add_record(category, type_, amount)
-    
+
     details = f"[bold]Category:[/bold] [cyan]{category}[/cyan]\n[bold]Type:[/bold] [cyan]{type_}[/cyan]\n[bold]Amount:[/bold] [bold magenta]${amount:,.2f}[/bold magenta]"
     console.print(Panel(details, title="[bold green]✔ Transaction saved successfully![/bold green]", border_style="green", expand=False))
 
@@ -153,26 +155,57 @@ def handle_delete():
     elif choice is None:
         console.print("[dim]Operation cancelled.[/dim]")
 
-def handle_summary():
-    "Returns a table with the data of total income and total expense"
-    total_income,total_expense,last_date = utils.get_records()
+def _summary_table_layout(total_income, total_expense, balance, last_date):
+    """Render the summary as a Rich table inside a panel."""
     table = Table(
-        title=f"Transaction Summary — Last updated: {last_date}", 
-        box=box.HEAVY_EDGE, 
+        title=f"Transaction Summary — Last updated: {last_date}",
+        box=box.HEAVY_EDGE,
         header_style="bold cyan",
         show_lines=True
     )
     table.add_column("Category", justify="right", no_wrap=True)
     table.add_column("Total", style='green', justify="right")
-    table.add_row("Total Income", f"[bold green]${total_income or 0:,.2f}[/bold green]")
-    table.add_row("Total Expense", f"[bold red]${total_expense or 0:,.2f}[/bold red]")
-    
-    balance = (total_income or 0) - (total_expense or 0)
+    table.add_row("Total Income", f"[bold green]${total_income:,.2f}[/bold green]")
+    table.add_row("Total Expense", f"[bold red]${total_expense:,.2f}[/bold red]")
+
     b_color = "green" if balance >= 0 else "red"
-    
     table.add_row("[bold]Balance[/bold]", f"[bold {b_color}]${balance:,.2f}[/bold {b_color}]")
-    
+
     console.print(Panel(Align(table, align="center"), border_style="cyan", expand=False, title="[bold cyan]Summary[/bold cyan]"))
+
+
+def _summary_body(total_income, total_expense, balance, last_date):
+    """Render a clean financial summary panel as the body layout."""
+    b_color = "green" if balance >= 0 else "red"
+    b_sign = "+" if balance >= 0 else "-"
+
+    body = Text()
+    body.append("   Total Income   ▸  ", style="bold cyan")
+    body.append(f"${total_income:>12,.2f}\n", style="bold #00FF88")
+    body.append("   Total Expense  ▸  ", style="bold cyan")
+    body.append(f"${total_expense:>12,.2f}\n", style="bold #FF4444")
+    body.append("  ─────────────────────────────────\n", style="dim")
+    body.append("  Ending Balance        ▸ ", style="bold cyan")
+    body.append(f"{b_sign}${abs(balance):>12,.2f}\n", style=f"bold {b_color}")
+    body.append("\n")
+    body.append(f"  Last updated: {last_date}", style="dim")
+
+    console.print(Panel(
+        Align(body, align="center"),
+        border_style="#00BFFF",
+        padding=(1, 2),
+        expand=False,
+        title="[bold cyan]Financial Summary[/bold cyan]",
+    ))
+
+
+def handle_summary():
+    "Returns a table with the data of total income and total expense"
+    total_income, total_expense, last_date = utils.get_records()
+    total_income = total_income or 0
+    total_expense = total_expense or 0
+    balance = total_income - total_expense
+    _summary_table_layout(total_income, total_expense, balance, last_date)
 
 def handle_plot():
     "plots the transaction data into a line plot"
@@ -189,13 +222,20 @@ def main():
         'Summary': handle_summary,
         'plot': handle_plot
     }
-    
+
     console.clear()
     console.print(make_header())
+
+    # Show financial summary body below the header
+    total_income, total_expense, last_date = utils.get_records()
+    total_income = total_income or 0
+    total_expense = total_expense or 0
+    balance = total_income - total_expense
+    _summary_body(total_income, total_expense, balance, last_date)
     console.print()
-    
+
     while True:
-        try: 
+        try:
             command = ask_choice("Action", [*dispatch.keys(), 'Exit'])
             if command is None or command == 'Exit':
                 console.print("\n[dim]Goodbye! Closing CLI-Finance...[/dim]")

@@ -23,6 +23,7 @@ dependencies = [
   "typer",
   "rich",
   "plotext",
+  "prompt_toolkit"
 ]
 requires-python = ">= 3.12"
 
@@ -62,7 +63,7 @@ cli_finance = "cli_finance.cli:main"
 # rules.TY015 = "warn"  # For invalid-argument-type, warn instead of error.
 
 [tool.ruff]
-line-length = 120
+line-length = 180
 
 [tool.ruff.lint]
 select = [

@@ -2,15 +2,15 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-
+from rich.console import Console
 from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.validation import Validator, ValidationError
+from prompt_toolkit.validation import ValidationError, Validator
 
 APP_DIR = Path.home() / ".cli-finance"
 APP_DIR.mkdir(mode=0o700, exist_ok=True)
 DB = str(APP_DIR / "records.db")
-
+console =Console()
 class IDValidator(Validator):
     def validate(self, document):
         text = document.text
@@ -19,9 +19,9 @@ class IDValidator(Validator):
         try:
             val = int(text)
             if val < 0:
-                raise ValidationError(message="ID must be positive.", cursor_position=len(text))
+                raise ValidationError(message="ID must be positive.", cursor_position=len(text)) from None
         except ValueError:
-            raise ValidationError(message="Please enter a valid integer ID.", cursor_position=len(text))
+            raise ValidationError(message="Please enter a valid integer ID.", cursor_position=len(text)) from None
 
 @contextmanager
 def get_conn():
@@ -76,7 +76,7 @@ def get_records():
 
 
 def delete_all():
-    from cli_finance.cli import ask_choice
+    from cli import ask_choice
     with get_conn() as con:
         # Prompt user using our new TUI standard
         confirm = ask_choice("Confirm delete data?", ['Confirm', 'Escape'])
@@ -89,7 +89,7 @@ def delete_specific():
     with get_conn() as con:
         text = HTML("<b><ansired>Which transaction ID would you like to delete?</ansired></b>\n<ansigreen>❯</ansigreen> ")
         id_str = prompt(text, validator=IDValidator(), key_bindings=bindings, bottom_toolbar=bottom_toolbar)
-        
+
         if id_str is not None:
             con.execute("DELETE FROM transactions WHERE id =?", (int(id_str),))
 
@@ -113,25 +113,30 @@ def get_data():
             total_expense += (exp or 0)
             Incomes.append(total_income)
             Expenses.append(total_expense)
-
-    return dates ,Incomes,Expenses
+    if total_income==0:
+        return dates,0,0
+    else:
+        return dates ,Incomes,Expenses
 def line_plot():
     import plotext as plt
     Date , Incomes, Expenses = get_data()
-    x = list(range(len(Date)))
-    plt.clf()
+    if Incomes ==0:
+        console.print("There isn't enough data to plot")
+    else:
+        x = list(range(len(Date)))
+        plt.clf()
 
-    plt.theme('clear')
-    plt.plot_size(100,30)
-    plt.date_form('d/m/Y')
-    plt.plot(x,Incomes,color='green')
-    plt.plot(x,Expenses,color='red')
-    step = max(1, len(Date) // 10)
-    sampled_x = x[::step]
-    sampled_dates = Date[::step]
-    plt.xticks(sampled_x, sampled_dates)
-    plt.title("Financial Overview   [green: Income | red: Expense]")
-    plt.show()
+        plt.theme('clear')
+        plt.plot_size(100,20)
+        plt.date_form('d/m/Y')
+        plt.plot(x,Incomes,color='green')
+        plt.plot(x,Expenses,color='red')
+        step = max(1, len(Date) // 10)
+        sampled_x = x[::step]
+        sampled_dates = Date[::step]
+        plt.xticks(sampled_x, sampled_dates)
+        plt.title("Financial Overview   [green: Income | red: Expense]")
+        plt.show()
 
 
 
