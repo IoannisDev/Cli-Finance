@@ -3,7 +3,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-import plotext as plt
 from rich.prompt import IntPrompt, InvalidResponse, Prompt
 
 APP_DIR = Path.home() / ".cli-finance"
@@ -110,6 +109,7 @@ def get_data():
 
     return dates ,Incomes,Expenses
 def line_plot():
+    import plotext as plt
     Date , Incomes, Expenses = get_data()
     x = list(range(len(Date)))
     plt.clf()
