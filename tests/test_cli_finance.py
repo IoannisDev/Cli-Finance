@@ -36,8 +36,8 @@ def test_add_and_get_records():
 def test_delete_all(monkeypatch):
     """Verify that deleting all data functions properly."""
     # Mock the ask_choice call inside delete_all to automatically return 'Confirm'
-    from cli_finance import cli
-    monkeypatch.setattr(cli, "ask_choice", lambda *args, **kwargs: "Confirm")
+    
+    monkeypatch.setattr("cli_finance.utils.ask_choice" ,lambda *args, **kwargs: "Confirm")
 
     utils.add_record('Income', 'Salary', 500.0)
 

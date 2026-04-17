@@ -1,43 +1,24 @@
+"""CLI entry point — handles user interaction, layout, and dispatching commands."""
 try:
     from cli_finance import utils
+    from cli_finance.shared import console, bindings, bottom_toolbar, ask_choice
 except ModuleNotFoundError:
     import utils  # type: ignore[import-not-found]  # direct script execution
+    from shared import console, bindings, bottom_toolbar, ask_choice  # type: ignore[import-not-found]
 from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.validation import ValidationError, Validator
 from rich import box
 from rich.align import Align
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.theme import Theme
-
-#Theme for the CLI interface
-custom_theme = Theme({
-    "info": "dim cyan",
-    "warning": "bold yellow",
-    "error": "bold red",
-    "repr.number" :"bold magenta",
-    "repr.string" :"bold yellow",
-    "panel.border":"grey50"
-})
-
-console = Console(markup=True, highlight=True, force_terminal=True, theme=custom_theme)
-bindings = KeyBindings()
-
-@bindings.add('escape')
-def exit_app(event):
-    # Support clean exit cleanly returning None when Escape is pressed
-    event.app.exit(result=None)
-
-def bottom_toolbar():
-    return HTML(' <b><style bg="ansiyellow" fg="black"> TAB </style></b> Autocomplete  <b><style bg="ansired" fg="white"> ESC </style></b> Cancel/Exit ')
 
 class NumberValidator(Validator):
-    def validate(self, document):
+    """Validates that the user enters a positive non-zero float."""
+
+    def validate(self, document: Document) -> None:
         text = document.text
         if not text.strip():
             raise ValidationError(message="Please enter an amount.", cursor_position=0)
@@ -47,31 +28,6 @@ class NumberValidator(Validator):
                 raise ValidationError(message="Amount must be > 0.", cursor_position=len(text))
         except ValueError:
             raise ValidationError(message="Please enter a valid number.", cursor_position=len(text)) from None
-
-def ask_choice(message: str, choices: list[str]) -> str | None:
-    completer = WordCompleter(choices, ignore_case=True)
-    choices_str = "/".join(choices)
-    text = HTML(f"<b><ansicyan>{message}</ansicyan></b>"
-                f"<ansigray>[{choices_str}]</ansigray>"
-                "\n<ansigreen>❯</ansigreen> ")
-
-    while True:
-        result = prompt(
-            text,
-            completer=completer,
-            key_bindings=bindings,
-            bottom_toolbar=bottom_toolbar,
-            complete_while_typing=True
-        )
-        if result is None:
-            return None
-        result_lower = result.strip().lower()
-        if not result_lower:
-            continue
-        for choice in choices:
-            if choice.lower() == result_lower:
-                return choice
-        console.print(f"[bold red]Invalid option.[/bold red] Please choose from: {choices_str}")
 
 ASCII_art = r"""
   /$$$$$$  /$$       /$$$$$$       /$$$$$$$$ /$$$$$$ /$$   /$$  /$$$$$$  /$$   /$$  /$$$$$$  /$$$$$$$$
@@ -101,14 +57,17 @@ def make_header() -> Panel:
     return Panel(
         Align(art, align='center', vertical='middle'),
         border_style="#00BFFF",
-        padding=(1, 2),
+        padding=(0, 2),
         title="[bold cyan]CLI-Finance v0.1.0[/bold cyan]",
         subtitle="[dim]Your personal finance tracker[/dim]",
         expand=False
     )
 
-#Asks the user for input and the data is validated by the rich library
-def input_c():
+def input_c() -> tuple[str, str, float] | None:
+    """Interactively collect category, type, and amount from the user.
+
+    Returns a (category, type_, amount) tuple, or None if the user cancels.
+    """
     category = ask_choice("Enter category", ['Income', 'Expense'])
     if category is None:
         console.print("[bold red]Action cancelled. Returning to main menu...[/bold red]")
@@ -132,8 +91,8 @@ def input_c():
 
     return category, type_, float(amount_str)
 
-def handle_add():
-    "Asks for input from the user and records the data"
+def handle_add() -> None:
+    """Ask the user for transaction details and save the record to the database."""
     result = input_c()
     if result is None:
         return
@@ -143,8 +102,8 @@ def handle_add():
     details = f"[bold]Category:[/bold] [cyan]{category}[/cyan]\n[bold]Type:[/bold] [cyan]{type_}[/cyan]\n[bold]Amount:[/bold] [bold magenta]${amount:,.2f}[/bold magenta]"
     console.print(Panel(details, title="[bold green]✔ Transaction saved successfully![/bold green]", border_style="green", expand=False))
 
-def handle_delete():
-    "Deletes the data from the sql file"
+def handle_delete() -> None:
+    """Prompt the user to delete all transactions or a specific one by ID."""
     choice = ask_choice("Do you want to delete specific transaction or all the data?", ['All', 'Specific'])
     if choice == 'All':
         utils.delete_all()
@@ -155,7 +114,7 @@ def handle_delete():
     elif choice is None:
         console.print("[dim]Operation cancelled.[/dim]")
 
-def _summary_table_layout(total_income, total_expense, balance, last_date):
+def _summary_table_layout(total_income: float, total_expense: float, balance: float, last_date: str) -> None:
     """Render the summary as a Rich table inside a panel."""
     table = Table(
         title=f"Transaction Summary — Last updated: {last_date}",
@@ -172,9 +131,8 @@ def _summary_table_layout(total_income, total_expense, balance, last_date):
     table.add_row("[bold]Balance[/bold]", f"[bold {b_color}]${balance:,.2f}[/bold {b_color}]")
 
     console.print(Panel(Align(table, align="center"), border_style="cyan", expand=False, title="[bold cyan]Summary[/bold cyan]"))
-
-
-def _summary_body(total_income, total_expense, balance, last_date):
+    
+def _summary_body(total_income: float, total_expense: float, balance: float, last_date: str) -> Panel:
     """Render a clean financial summary panel as the body layout."""
     b_color = "green" if balance >= 0 else "red"
     b_sign = "+" if balance >= 0 else "-"
@@ -190,30 +148,31 @@ def _summary_body(total_income, total_expense, balance, last_date):
     body.append("\n")
     body.append(f"  Last updated: {last_date}", style="dim")
 
-    console.print(Panel(
+    return Panel(
         Align(body, align="center"),
         border_style="#00BFFF",
         padding=(1, 2),
-        expand=False,
+        expand=True,
         title="[bold cyan]Financial Summary[/bold cyan]",
-    ))
+    )
 
 
-def handle_summary():
-    "Returns a table with the data of total income and total expense"
+def handle_summary() -> None:
+    """Retrieve totals from the database and render the summary table."""
     total_income, total_expense, last_date = utils.get_records()
     total_income = total_income or 0
     total_expense = total_expense or 0
     balance = total_income - total_expense
     _summary_table_layout(total_income, total_expense, balance, last_date)
 
-def handle_plot():
-    "plots the transaction data into a line plot"
+def handle_plot() -> None:
+    """Render a line plot of cumulative income and expenses over time."""
     try:
         utils.line_plot()
     except Exception as e:
         console.print(f"[bold red]Failed to plot data:[/bold red] {e}")
-def main():
+def main() -> None:
+    """Initialise the database, render the header, and run the main command loop."""
     utils.init_()
 
     dispatch = {
@@ -231,7 +190,22 @@ def main():
     total_income = total_income or 0
     total_expense = total_expense or 0
     balance = total_income - total_expense
-    _summary_body(total_income, total_expense, balance, last_date)
+    summary_panel = _summary_body(total_income, total_expense, balance, last_date)
+
+    future_panel = Panel(
+        Align(Text("\n\n\n[ Placeholder for future features ]\n\n\n", style="dim"), align="center", vertical="middle"),
+        border_style="#00BFFF",
+        padding=(0, 2),
+        expand=False,
+        title="[bold cyan]Upcoming Features[/bold cyan]",
+    )
+
+    grid = Table.grid(expand=False, padding=(0, 2))
+    grid.add_column(justify="center", ratio=1)
+    grid.add_column(justify="center", ratio=1)
+    grid.add_row(summary_panel, future_panel)
+
+    console.print(grid)
     console.print()
 
     while True:
