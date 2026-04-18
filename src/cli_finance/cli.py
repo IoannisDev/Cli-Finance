@@ -14,6 +14,93 @@ from rich.align import Align
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from rich.progress import Progress,BarColumn,TextColumn,TaskProgressColumn,MofNCompleteColumn
+
+
+def _savings_table_panel() -> Panel:
+    """Render a Rich table of all savings deposits."""
+    from rich.console import Group
+    history = utils.get_savings_history()
+    total = utils.get_total_savings()
+
+    table = Table(
+        box=box.SIMPLE_HEAVY,
+        header_style="bold cyan",
+        show_lines=True,
+        expand=False,
+    )
+    table.add_column("#", justify="right", style="dim", no_wrap=True)
+    table.add_column("Date", justify="center", style="bold white", no_wrap=True)
+    table.add_column("Deposit", justify="right", style="bold #00FF88", no_wrap=True)
+
+    if not history:
+        table.add_row("—", "—", "—")
+    else:
+        for row_id, amount, date in history:
+            table.add_row(str(row_id), date, f"${amount:,.2f}")
+
+    footer = Text()
+    footer.append("\n  Total Saved  ▸  ", style="bold cyan")
+    footer.append(f"${total:,.2f}", style="bold #00FF88")
+    footer.append("\n")
+
+    return Panel(
+        Group(Align(table, align="center"), Align(footer, align="center")),
+        border_style="#00BFFF",
+        padding=(0, 2),
+        expand=False,
+        title="[bold cyan]Savings History[/bold cyan]",
+    )
+
+
+def _savings_goal_panel(total_savings: float) -> Panel:
+    from rich.console import Group
+
+    goal = utils.load_goal()
+    body = Text()
+
+    if goal is None or goal <= 0:
+        body.append("\n  No savings goal set.\n", style="dim")
+        body.append("  Use [bold cyan]Set Goal[/bold cyan] to get started.\n\n", style="dim")
+        return Panel(Align(body, align="center"), border_style="#00BFFF", padding=(0, 2), expand=False, title="[bold cyan]Savings Goal[/bold cyan]")
+
+    saved = max(total_savings, 0)
+    remaining = max(goal - total_savings, 0)
+    status = "[bold #00FF88]Goal reached![/bold #00FF88]" if total_savings >= goal else f"[bold yellow]${remaining:,.2f}[/bold yellow] to go"
+
+    body.append(f"\n  Goal:    ", style="bold cyan")
+    body.append(f"${goal:,.2f}\n", style="bold white")
+    body.append(f"  Saved:   ", style="bold cyan")
+    body.append(f"${saved:,.2f}\n", style="bold #00FF88")
+    body.append(f"  Status:  ", style="bold cyan")
+    body.append_text(Text.from_markup(status))
+    body.append("\n\n")
+
+    progres = Progress(
+        TextColumn("[bold cyan]{task.description}"),
+        BarColumn(bar_width=28, complete_style="#00FF88", finished_style="#00FF88"),
+        MofNCompleteColumn(),
+        TaskProgressColumn(),
+        expand=False,
+    )
+    progres.add_task("Savings", total=goal, completed=saved)
+
+    return Panel(
+        Group(Align(body, align="center"), Align(progres, align="center")),
+        border_style="#00BFFF",
+        padding=(0, 2),
+        expand=False,
+        title="[bold cyan]Savings Goal[/bold cyan]",
+    )
+
+
+def handle_set_goal() -> None:
+    text = HTML("<b><ansicyan>Set savings goal amount</ansicyan></b>\n<ansigreen>❯ $</ansigreen> ")
+    amount_str = prompt(text, validator=NumberValidator(), key_bindings=bindings, bottom_toolbar=bottom_toolbar)
+    if amount_str is None:
+        return
+    utils.set_goal(float(amount_str))
+    console.print(Panel(f"[bold green]Savings goal set to [bold white]${float(amount_str):,.2f}[/bold white]![/bold green]", border_style="green", expand=False))
 
 class NumberValidator(Validator):
     """Validates that the user enters a positive non-zero float."""
@@ -72,9 +159,9 @@ def input_c() -> tuple[str, str, float] | None:
     if category is None:
         console.print("[bold red]Action cancelled. Returning to main menu...[/bold red]")
         return None
-
     if category == "Income":
         type_ = ask_choice("Enter the type of Income", ['Salary', 'Dividends', 'Cash Back', 'Investment returns'])
+
     elif category == "Expense":
         type_ = ask_choice("Enter the type of Expense", ['Grocery', 'Rent', 'Wifi', 'Electricity', 'Subscription', 'Electronics'])
 
@@ -100,7 +187,15 @@ def handle_add() -> None:
     utils.add_record(category, type_, amount)
 
     details = f"[bold]Category:[/bold] [cyan]{category}[/cyan]\n[bold]Type:[/bold] [cyan]{type_}[/cyan]\n[bold]Amount:[/bold] [bold magenta]${amount:,.2f}[/bold magenta]"
-    console.print(Panel(details, title="[bold green]✔ Transaction saved successfully![/bold green]", border_style="green", expand=False))
+    console.print(Panel(details, title="[bold green]Transaction saved successfully [/bold green]", border_style="green", expand=False))
+
+def hanndle_savings() -> None:
+    text = HTML("<b><ansicyan>Enter amount to save</ansicyan></b>\n<ansigreen>❯ $</ansigreen> ")
+    amount_str = prompt(text, validator=NumberValidator(), key_bindings=bindings, bottom_toolbar=bottom_toolbar)
+    if amount_str is None:
+        return
+    utils.add_savings(float(amount_str))
+    console.print(Panel(f"[bold green]Saved [bold white]${float(amount_str):,.2f}[/bold white] successfully![/bold green]", border_style="green", expand=False))
 
 def handle_delete() -> None:
     """Prompt the user to delete all transactions or a specific one by ID."""
@@ -159,7 +254,7 @@ def _summary_body(total_income: float, total_expense: float, balance: float, las
 
 def handle_summary() -> None:
     """Retrieve totals from the database and render the summary table."""
-    total_income, total_expense, last_date = utils.get_records()
+    total_income, total_expense, _, last_date = utils.get_records()
     total_income = total_income or 0
     total_expense = total_expense or 0
     balance = total_income - total_expense
@@ -177,33 +272,31 @@ def main() -> None:
 
     dispatch = {
         'Add': handle_add,
-        'Delete':handle_delete,
+        'Delete': handle_delete,
+        "Deposit Savings":hanndle_savings,
         'Summary': handle_summary,
-        'plot': handle_plot
+        'plot': handle_plot,
+        'Set Goal': handle_set_goal,
     }
 
     console.clear()
     console.print(make_header())
 
     # Show financial summary body below the header
-    total_income, total_expense, last_date = utils.get_records()
+    total_income, total_expense, total_savings, last_date = utils.get_records()
     total_income = total_income or 0
     total_expense = total_expense or 0
     balance = total_income - total_expense
     summary_panel = _summary_body(total_income, total_expense, balance, last_date)
 
-    future_panel = Panel(
-        Align(Text("\n\n\n[ Placeholder for future features ]\n\n\n", style="dim"), align="center", vertical="middle"),
-        border_style="#00BFFF",
-        padding=(0, 2),
-        expand=False,
-        title="[bold cyan]Upcoming Features[/bold cyan]",
-    )
+    savings_table_panel = _savings_table_panel()
+    goal_panel = _savings_goal_panel(total_savings)
 
     grid = Table.grid(expand=False, padding=(0, 2))
     grid.add_column(justify="center", ratio=1)
     grid.add_column(justify="center", ratio=1)
-    grid.add_row(summary_panel, future_panel)
+    grid.add_column(justify="center", ratio=1)
+    grid.add_row(summary_panel, savings_table_panel, goal_panel)
 
     console.print(grid)
     console.print()

@@ -20,7 +20,6 @@ classifiers = [
 ]
 license = {text = "MIT"}
 dependencies = [
-  "typer",
   "rich",
   "plotext",
   "prompt_toolkit"
