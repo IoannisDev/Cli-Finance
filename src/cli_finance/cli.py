@@ -18,7 +18,7 @@ from rich.progress import Progress,BarColumn,TextColumn,TaskProgressColumn,MofNC
 
 
 def _savings_table_panel() -> Panel:
-    """Render a Rich table of all savings deposits."""
+    """Renders a Rich table of all savings deposits."""
     from rich.console import Group
     history = utils.get_savings_history()
     total = utils.get_total_savings()
